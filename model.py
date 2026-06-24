@@ -69,7 +69,7 @@ if missing_cols_c:
 X_class = pd.get_dummies(df_class[FEATURES], drop_first=True)
 y_class = df_class["priorite"]
 
-# On verifie les classes reellement presentes plutot que de les coder en dur
+
 class_labels = sorted(y_class.unique())
 
 Xc_train, Xc_test, yc_train, yc_test = train_test_split(
@@ -94,7 +94,7 @@ plt.ylabel("Reel")
 plt.xlabel("Predit")
 plt.tight_layout()
 plt.savefig("confusion_matrix.png", dpi=150)
-plt.close()  # evite un blocage en mode script
+plt.close()  
 
 imp_class = pd.DataFrame({
     "Variable": X_class.columns,
