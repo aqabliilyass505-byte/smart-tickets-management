@@ -40,7 +40,7 @@ df = pd.DataFrame({
 def calcul_priorite(row):
     score = 0
     
-    # Règle 1 : Type de demande
+    # Type de demande
     if row["type_demande"] == "reseau":
         score += 30
     elif row["type_demande"] == "materiel":
@@ -50,7 +50,7 @@ def calcul_priorite(row):
     elif row["type_demande"] == "login":
         score += 5
     
-    # Règle 2 : Nombre d'utilisateurs impactés
+    # Nombre d'utilisateurs impactés
     if row["utilisateurs_impactes"] > 50:
         score += 25
     elif row["utilisateurs_impactes"] > 5:
@@ -58,7 +58,7 @@ def calcul_priorite(row):
     else:
         score += 0
     
-    # Règle 3 : Service (IT et Technique = plus critiques)
+    # Service (IT et Technique = plus critiques)
     if row["service"] in ["IT", "Technique"]:
         score += 5
     
@@ -72,7 +72,7 @@ def calcul_priorite(row):
 
 df["priorite"] = df.apply(calcul_priorite, axis=1)
 
-#Calcul du temps de traitement (avec vraies relations)
+#Calcul du temps de traitement
 def calcul_temps(row):
     temps = 8  # Temps de base (heures)
     
@@ -89,7 +89,7 @@ def calcul_temps(row):
     effet_priorite = {
         "faible": 8,
         "moyenne": 4,
-        "haute": -2  # On met les moyens, donc plus rapide
+        "haute": -2  
     }
     temps += effet_priorite[row["priorite"]]
     
