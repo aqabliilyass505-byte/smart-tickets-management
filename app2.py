@@ -70,9 +70,7 @@ st.sidebar.markdown(f"**{len(filtered)} tickets filtrés**")
 # ─── Onglets ───
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "🤖 Prédiction", "📈 Analyse", "📋 Données"])
 
-# ═══════════════════════════════════════
 # TAB 1 : DASHBOARD
-# ═══════════════════════════════════════
 with tab1:
     col_left, col_right = st.columns(2)
     
@@ -113,9 +111,7 @@ with tab1:
     plt.xlabel("Temps moyen (heures)")
     st.pyplot(fig)
 
-# ═══════════════════════════════════════
 # TAB 2 : PRÉDICTION
-# ═══════════════════════════════════════
 with tab2:
     st.subheader("🎯 Simulateur de prédiction")
     
@@ -184,9 +180,8 @@ with tab2:
     with col_p3:
         st.metric("Action recommandée", "Urgent" if prio_pred == "haute" else "Standard")
 
-# ═══════════════════════════════════════
+
 # TAB 3 : ANALYSE AVANCÉE
-# ═══════════════════════════════════════
 with tab3:
     st.subheader("📊 Heatmap Type × Priorité")
     
@@ -208,9 +203,7 @@ with tab3:
         plt.title("Nombre de tickets par jour")
         st.pyplot(fig)
 
-# ═══════════════════════════════════════
 # TAB 4 : DONNÉES BRUTES
-# ═══════════════════════════════════════
 with tab4:
     st.subheader(f"📋 {len(filtered)} tickets filtrés")
     
