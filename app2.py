@@ -68,9 +68,11 @@ filtered = df[
 st.sidebar.markdown(f"**{len(filtered)} tickets filtrés**")
 
 # ─── Onglets ───
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "🤖 Prédiction", "📈 Analyse", "📋 Données"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Dashboard", "Prédiction", "Analyse", "Données", "NPL", "Alertes"])
 
+# ═══════════════════════════════════════
 # TAB 1 : DASHBOARD
+# ═══════════════════════════════════════
 with tab1:
     col_left, col_right = st.columns(2)
     
@@ -111,7 +113,9 @@ with tab1:
     plt.xlabel("Temps moyen (heures)")
     st.pyplot(fig)
 
+# ═══════════════════════════════════════
 # TAB 2 : PRÉDICTION
+# ═══════════════════════════════════════
 with tab2:
     st.subheader("🎯 Simulateur de prédiction")
     
@@ -180,8 +184,9 @@ with tab2:
     with col_p3:
         st.metric("Action recommandée", "Urgent" if prio_pred == "haute" else "Standard")
 
-
+# ═══════════════════════════════════════
 # TAB 3 : ANALYSE AVANCÉE
+# ═══════════════════════════════════════
 with tab3:
     st.subheader("📊 Heatmap Type × Priorité")
     
@@ -203,7 +208,9 @@ with tab3:
         plt.title("Nombre de tickets par jour")
         st.pyplot(fig)
 
+# ═══════════════════════════════════════
 # TAB 4 : DONNÉES BRUTES
+# ═══════════════════════════════════════
 with tab4:
     st.subheader(f"📋 {len(filtered)} tickets filtrés")
     
@@ -223,6 +230,265 @@ with tab4:
         "tickets_filtres.csv",
         "text/csv"
     )
+# ═══════════════════════════════════════
+# TAB 5 : NPL
+# ═══════════════════════════════════════
+with tab5:
+    st.header("🤖 Classification automatique par NLP")
+    
+    # Zone de texte pour l'utilisateur
+    st.subheader("📝 Décrivez votre problème")
+    user_text = st.text_area(
+        "Écrivez librement votre demande (ex: 'Mon écran ne s'allume plus')",
+        height=100
+    )
+    
+    if user_text:
+        # Chargement du modèle (en cache)
+        @st.cache_resource
+        def load_nlp_model():
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.naive_bayes import MultinomialNB
+            import joblib
+            
+            # Ou réentraîner si pas sauvegardé
+            df_nlp = pd.read_csv("demandes_nlp.csv")
+            
+            def clean(t):
+                import re
+                t = t.lower()
+                t = re.sub(r'[^\w\s]', ' ', t)
+                t = re.sub(r'\s+', ' ', t)
+                return t.strip()
+            
+            df_nlp["clean"] = df_nlp["description"].apply(clean)
+            
+            tfidf = TfidfVectorizer(max_features=1000, min_df=2, max_df=0.8, ngram_range=(1,2))
+            X = tfidf.fit_transform(df_nlp["clean"])
+            y = df_nlp["type_demande"]
+            
+            model = MultinomialNB()
+            model.fit(X, y)
+            
+            return tfidf, model
+        
+        tfidf, model = load_nlp_model()
+        
+        # Prédiction
+        import re
+        clean_text = user_text.lower()
+        clean_text = re.sub(r'[^\w\s]', ' ', clean_text)
+        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+        
+        text_tfidf = tfidf.transform([clean_text])
+        prediction = model.predict(text_tfidf)[0]
+        proba = model.predict_proba(text_tfidf)[0]
+        confiance = max(proba)
+        
+        # Affichage résultat
+        col_r1, col_r2, col_r3 = st.columns(3)
+        
+        with col_r1:
+            st.metric("🔮 Type détecté", prediction.upper())
+        
+        with col_r2:
+            st.metric("📊 Confiance", f"{confiance*100:.1f}%")
+        
+        with col_r3:
+            if confiance > 0.8:
+                st.success("✅ Haute confiance")
+            elif confiance > 0.5:
+                st.warning("⚠️ Vérifier")
+            else:
+                st.error("🔴 Incertain")
+        
+        # INTERPRÉTATION
+        st.subheader("💬 Analyse")
+        
+        type_desc = {
+            "reseau": "Problème d'infrastructure réseau (connexion, WiFi, serveur...)",
+            "login": "Problème d'accès ou d'authentification (mot de passe, compte...)",
+            "materiel": "Panne matérielle (écran, PC, imprimante...)",
+            "logiciel": "Problème logiciel (application, bug, installation...)"
+        }
+        
+        st.info(f"""
+        **Type identifié : {prediction.upper()}**
+        
+        {type_desc.get(prediction, "")}
+        
+        **Confiance : {confiance*100:.1f}%**
+        - {'Le modèle est très sûr de sa prédiction.' if confiance > 0.8 else 'Le modèle est modérément confiant.' if confiance > 0.5 else 'Le modèle hésite entre plusieurs types.'}
+        
+        **Recommandation :**
+        - {'Le ticket peut être auto-classifié et routé directement.' if confiance > 0.8 else 'Vérifier manuellement le type avant validation.'}
+        """)
+        
+        # Probabilités détaillées
+        st.subheader("📊 Probabilités par type")
+        proba_df = pd.DataFrame({
+            "Type": model.classes_,
+            "Probabilité": proba
+        }).sort_values("Probabilité", ascending=False)
+        
+        fig, ax = plt.subplots(figsize=(8, 4))
+        colors = ['green' if p == max(proba) else 'gray' for p in proba]
+        ax.barh(proba_df["Type"], proba_df["Probabilité"], color=colors)
+        ax.set_xlim(0, 1)
+        ax.set_xlabel("Probabilité")
+        st.pyplot(fig)
 
 st.markdown("---")
 st.caption("Projet Data Science INSEA - Système intelligent de gestion DSI")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# TAB 6 : ALERTES ET ANOMALIES (nouvel onglet)
+# ═══════════════════════════════════════════════════════════════════
+with tab6:
+    st.header("🚨 Centre d'Alertes - Détection d'Anomalies")
+    
+    st.markdown("""
+    **Objectif** : Identifier automatiquement les tickets atypiques qui risquent d'être bloqués ou oubliés.
+    
+    Un ticket est marqué comme **anomalie** si son temps de traitement est inhabituel par rapport à son profil (type, service, priorité, nombre d'utilisateurs).
+    """)
+    
+    # Chargement des données avec anomalies
+    try:
+        df_anom = pd.read_csv("demandes_anomalies.csv")
+    except:
+        # Calculer les anomalies si pas encore fait
+        from sklearn.ensemble import IsolationForest
+        from sklearn.preprocessing import StandardScaler
+        
+        features = ["temps_traitement", "utilisateurs_impactes", "heure_creation"]
+        df_encoded = pd.get_dummies(df[["type_demande", "service", "priorite"]], drop_first=True)
+        X = pd.concat([df[features], df_encoded], axis=1)
+        
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        
+        iso = IsolationForest(contamination=0.05, random_state=42)
+        df["anomalie"] = iso.fit_predict(X_scaled)
+        df["est_anomalie"] = df["anomalie"].apply(lambda x: "ANOMALIE" if x == -1 else "Normal")
+        df_anom = df.copy()
+    
+    # ─── KPIs Alertes ───
+    n_anomalies = len(df_anom[df_anom["anomalie"] == -1])
+    pct_anomalies = n_anomalies / len(df_anom) * 100
+    
+    col_a1, col_a2, col_a3, col_a4 = st.columns(4)
+    
+    with col_a1:
+        st.metric("🚨 Tickets anormaux", n_anomalies, f"{pct_anomalies:.1f}%")
+    
+    with col_a2:
+        temps_max_anom = df_anom[df_anom["anomalie"] == -1]["temps_traitement"].max()
+        st.metric("⏱️ Temps max anomalie", f"{temps_max_anom:.1f}h")
+    
+    with col_a3:
+        type_plus_anom = df_anom[df_anom["anomalie"] == -1]["type_demande"].mode()[0]
+        st.metric("📌 Type le plus anormal", type_plus_anom)
+    
+    with col_a4:
+        service_plus_anom = df_anom[df_anom["anomalie"] == -1]["service"].mode()[0]
+        st.metric("🏢 Service le plus anormal", service_plus_anom)
+    
+    st.markdown("---")
+    
+    # ─── Liste des anomalies ───
+    st.subheader("🔴 Tickets nécessitant une attention immédiate")
+    
+    anomalies = df_anom[df_anom["anomalie"] == -1].sort_values("temps_traitement", ascending=False)
+    
+    # Filtres d'alertes
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        alert_type = st.multiselect("Filtrer par type", anomalies["type_demande"].unique(), 
+                                    default=anomalies["type_demande"].unique(), key="alert_type")
+    with col_f2:
+        alert_service = st.multiselect("Filtrer par service", anomalies["service"].unique(),
+                                       default=anomalies["service"].unique(), key="alert_service")
+    
+    anomalies_filtered = anomalies[
+        (anomalies["type_demande"].isin(alert_type)) &
+        (anomalies["service"].isin(alert_service))
+    ]
+    
+    # Affichage des alertes
+    for idx, row in anomalies_filtered.head(10).iterrows():
+        with st.container():
+            col1, col2, col3 = st.columns([2, 1, 1])
+            
+            with col1:
+                st.markdown(f"**🚨 Ticket #{idx}**")
+                if "description" in row:
+                    st.write(f"📝 {row['description'][:80]}...")
+                st.write(f"📌 {row['type_demande']} | 🏢 {row['service']} | 🔥 {row['priorite']}")
+            
+            with col2:
+                st.metric("⏱️ Temps", f"{row['temps_traitement']:.1f}h")
+                # Comparaison avec la moyenne du type
+                moy_type = df_anom[df_anom["type_demande"] == row["type_demande"]]["temps_traitement"].mean()
+                ecart = ((row["temps_traitement"] - moy_type) / moy_type * 100)
+                st.write(f"📊 +{ecart:.0f}% vs moyenne")
+            
+            with col3:
+                if row["temps_traitement"] > 40:
+                    st.error("🔴 CRITIQUE")
+                elif row["temps_traitement"] > 30:
+                    st.warning("🟡 ÉLEVÉ")
+                else:
+                    st.info("🟢 À VÉRIFIER")
+                
+                # Bouton d'action
+                if st.button(f"📞 Contacter", key=f"btn_{idx}"):
+                    st.success(f"✅ Notification envoyée au service {row['service']}")
+            
+            st.markdown("---")
+    
+    # ─── Visualisation ───
+    st.subheader("📊 Carte des anomalies")
+    
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    normaux = df_anom[df_anom["anomalie"] == 1]
+    anoms = df_anom[df_anom["anomalie"] == -1]
+    
+    ax.scatter(normaux["utilisateurs_impactes"], normaux["temps_traitement"], 
+              c="lightblue", alpha=0.3, s=20, label=f"Normal ({len(normaux)})")
+    ax.scatter(anoms["utilisateurs_impactes"], anoms["temps_traitement"], 
+              c="red", alpha=0.8, s=100, marker="X", label=f"Anomalie ({len(anoms)})", edgecolors="black")
+    
+    # Ligne de tendance
+    z = np.polyfit(df_anom["utilisateurs_impactes"], df_anom["temps_traitement"], 1)
+    p = np.poly1d(z)
+    ax.plot(df_anom["utilisateurs_impactes"].sort_values(), 
+            p(df_anom["utilisateurs_impactes"].sort_values()), 
+            "g--", alpha=0.5, label="Tendance")
+    
+    ax.set_xlabel("Utilisateurs impactés")
+    ax.set_ylabel("Temps de traitement (heures)")
+    ax.set_title("Tickets normaux (bleu) vs Anomalies (rouge X)")
+    ax.legend()
+    
+    st.pyplot(fig)
+    
+    # INTERPRÉTATION
+    st.info(f"""
+    💬 **Interprétation :**
+    
+    - **{len(anoms)} tickets** ({pct_anomalies:.1f}%) sont atypiques par rapport à leur profil habituel
+    - Les anomalies (🔴 X) s'écartent de la tendance normale (ligne verte)
+    - **Causes possibles :**
+      • Ticket bloqué ou oublié dans le système
+      • Mauvaise assignation (agent incompétent pour ce type)
+      • Problème complexe nécessitant une escalade
+      • Dépendance externe (fournisseur, autre service)
+    
+    **Actions recommandées :**
+    1. 📞 Contacter l'agent assigné pour status
+    2. 🔄 Réassigner si nécessaire
+    3. 📊 Analyser les causes récurrentes
+    """)
